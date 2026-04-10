@@ -1,0 +1,10 @@
+{
+  "total_steps": 20000,
+  "nonzero_avalanches": 633,
+  "max_avalanche": 139,
+  "mean_avalanche": 3.500789889415482,
+  "median_avalanche": 1.0,
+  "alpha": 2.313711208685945,
+  "mean_connectivity": 0.7346765,
+  "min_connectivity": 0.005
+}
