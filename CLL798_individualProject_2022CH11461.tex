@@ -1,0 +1,494 @@
+\documentclass[12pt,a4paper]{article}
+
+% ── Packages ─────────────────────────────────────────────────────
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage{natbib}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{fancyhdr}
+
+% ── Code listing style ───────────────────────────────────────────
+\lstset{
+  language=Python,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{blue!70!black},
+  commentstyle=\color{green!50!black},
+  stringstyle=\color{red!60!black},
+  frame=single,
+  breaklines=true,
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  backgroundcolor=\color{gray!5},
+}
+
+% ── Header / Footer ─────────────────────────────────────────────
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{Complexity Science Project}
+\lhead{Power Grid Cascades \& SOC}
+\cfoot{\thepage}
+
+\begin{document}
+
+% ── Custom Title Page ───────────────────────────────────────────
+\begin{titlepage}
+    \centering
+    \vspace*{1cm}
+    
+    % Logo inclusion
+    % Adjust the width=0.3\textwidth parameter to scale your logo properly
+    \includegraphics[width=0.3\textwidth]{Indian_Institute_of_Technology_Delhi_Logo.svg.png}\\[1cm]
+    
+    % Institution Information
+    {\scshape\Large Indian Institute of Technology Delhi \par}
+    \vspace{0.4cm}
+    {\large Department of Chemical Engineering \par}
+    
+    \vspace{2cm}
+    
+    % Title Section with Horizontal Rules
+    \rule{\textwidth}{1pt}\\[0.5cm]
+    {\huge \bfseries Network Dynamics and Self-Organized Criticality\\[0.3em] 
+    in Power Grid Failure Cascades \par}
+    \vspace{0.4cm}
+    \rule{\textwidth}{1pt}\\[1.5cm]
+    
+    % Subtitle / Course Info
+    {\Large \textit{CLL798: Complexity Science Individual Project} \par}
+    
+    \vspace{2.5cm}
+    
+    % Author Information
+    {\Large Md Tahseen Ahmad}\\[0.3em]
+    {\large 2022CH11461}\\[0.3em]
+    \texttt{ch1221461@iitd.ac.in}
+    
+    \vfill
+    
+    % Date
+    {\large April 2026 \par}
+\end{titlepage}
+
+% ═════════════════════════════════════════════════════════════════
+\begin{abstract}
+Power grids are among the most critical infrastructure systems in modern society, and their failure dynamics exhibit hallmarks of complex systems.
+In this work, we model a power transmission network as a graph of interconnected substations and analyse how small, random perturbations can trigger cascading blackouts that propagate through the network.
+Using a sandpile-inspired drive-dissipation model on scale-free, small-world, and random network topologies, we simulate 20,000 time steps of stochastic load injection and cascade relaxation.
+The resulting avalanche-size distribution follows a power law with exponent $\alpha \approx 2.31$ on the scale-free topology, consistent with self-organized criticality (SOC).
+We further examine the relationship between network connectivity and cascade severity, finding that large avalanches coincide with sharp drops in the size of the largest connected component.
+Comparative analysis across topologies reveals that scale-free networks are most susceptible to heavy-tailed cascade distributions, while random networks exhibit thinner tails.
+These findings support the hypothesis that real power grids, which share structural features with scale-free networks, naturally evolve towards a self-organized critical state.
+\end{abstract}
+
+\textbf{Keywords:} self-organized criticality, power grid, cascading failure, avalanche dynamics, complex networks, sandpile model
+
+
+% ═════════════════════════════════════════════════════════════════
+\section{Introduction}
+\label{sec:intro}
+
+Modern electrical power grids are vast, interconnected networks comprising thousands of generators, substations, and transmission lines.
+Despite decades of engineering optimization, large-scale blackouts continue to occur with surprising regularity.
+The 2003 Northeast blackout in the United States affected 55 million people; the 2012 India blackout left over 600 million without power.
+These events share a common pattern: a small, seemingly insignificant triggering event leads to a disproportionately large system-wide failure through a chain reaction of overloads.
+
+This pattern---small perturbations producing scale-invariant cascading failures---is a hallmark of \textit{self-organized criticality} (SOC), a concept introduced by Bak, Tang, and Wiesenfeld \cite{bak1987} through their abelian sandpile model.
+In SOC systems, the dynamics of slow driving and fast relaxation push the system towards a critical state without the need for external parameter tuning.
+At criticality, the system exhibits power-law distributed event sizes, long-range correlations, and sensitivity to perturbations at all scales.
+
+Power grids are compelling candidates for complexity science analysis for several reasons:
+
+\begin{enumerate}[leftmargin=2em]
+  \item \textbf{Noise}: Random fluctuations in demand, renewable generation intermittency, equipment degradation, and weather events continuously perturb the system.
+  \item \textbf{Avalanches}: When a transmission line or substation is overloaded, its load is redistributed to neighbouring components, which may themselves become overloaded, triggering a cascade.
+  \item \textbf{Connectivity}: The network topology---how substations are linked---determines how perturbations propagate. Hub nodes (high-degree substations) can either stabilize the grid by absorbing load or amplify failures by transmitting overloads to many neighbours simultaneously.
+\end{enumerate}
+
+In this project, we develop a computational model that captures these three elements and investigate whether the simulated power grid self-organizes to a critical state.
+The remainder of this paper is organized as follows: Section~\ref{sec:background} reviews the theoretical background; Section~\ref{sec:model} describes the model and simulation methodology; Section~\ref{sec:results} presents and analyses the results; Section~\ref{sec:discussion} discusses the implications; and Section~\ref{sec:conclusion} offers conclusions.
+
+
+% ═════════════════════════════════════════════════════════════════
+\section{Theoretical Background}
+\label{sec:background}
+
+\subsection{Self-Organized Criticality}
+
+Self-organized criticality (SOC) was proposed by Bak, Tang, and Wiesenfeld in 1987 \cite{bak1987} to explain the ubiquity of power-law behaviour in nature.
+The canonical SOC model is the \textit{sandpile}: grains of sand are added one at a time to a pile; when the local slope exceeds a threshold, an avalanche occurs, redistributing grains to neighbours.
+The system naturally evolves to a critical state where the avalanche-size distribution follows a power law:
+\begin{equation}
+  P(s) \sim s^{-\alpha}
+  \label{eq:powerlaw}
+\end{equation}
+where $s$ is the avalanche size and $\alpha$ is the critical exponent, typically in the range $1 < \alpha < 3$ for physical SOC systems.
+
+Three necessary conditions for SOC are:
+\begin{enumerate}[leftmargin=2em]
+  \item A slow \textit{driving} mechanism that adds energy or stress to the system.
+  \item A fast \textit{relaxation} mechanism (avalanches) that dissipates the accumulated stress.
+  \item A \textit{threshold} condition that separates stable from unstable states.
+\end{enumerate}
+
+\subsection{Complex Networks and Power Grids}
+
+Real power grids exhibit heterogeneous degree distributions that lie between purely random (Erd\H{o}s--R\'enyi) and scale-free (Barab\'asi--Albert) topologies \cite{albert2004}.
+Scale-free networks, characterized by a power-law degree distribution $P(k) \sim k^{-\gamma}$, are known to be robust against random failures but highly vulnerable to targeted attacks on high-degree hub nodes \cite{barabasi1999}.
+
+The \textit{connectivity} of the network---measured by the relative size of the largest connected component---is a macroscopic order parameter that reflects system integrity.
+A sharp drop in connectivity during a cascade signals a large-scale fragmentation event analogous to a percolation transition.
+
+\subsection{Cascading Failures as Avalanches}
+
+In the power grid context, an avalanche proceeds as follows:
+\begin{enumerate}[leftmargin=2em]
+  \item A node (substation) becomes overloaded when its load exceeds its capacity.
+  \item The overloaded node fails and redistributes a fraction of its load to neighbouring alive nodes.
+  \item Neighbours that were already near capacity may themselves become overloaded, extending the cascade.
+  \item The cascade halts when no further nodes are overloaded.
+\end{enumerate}
+
+This is directly analogous to the sandpile relaxation: the load plays the role of sand grains, the capacity threshold plays the role of the critical slope, and the redistribution to neighbours is the toppling rule.
+
+
+% ═════════════════════════════════════════════════════════════════
+\section{Model and Simulation Methodology}
+\label{sec:model}
+
+\subsection{Network Construction}
+
+We model the power grid as an undirected graph $G = (V, E)$ with $N = 200$ nodes and edges generated according to three topologies:
+
+\begin{itemize}[leftmargin=2em]
+  \item \textbf{Scale-free} (Barab\'asi--Albert, $m=3$): preferential attachment generates a heterogeneous degree distribution with hub nodes, mimicking real grid structure.
+  \item \textbf{Small-world} (Watts--Strogatz, $k=6$, $p=0.3$): high clustering with short path lengths.
+  \item \textbf{Random} (Erd\H{o}s--R\'enyi, $p = 2m/N$): homogeneous degree distribution.
+\end{itemize}
+
+Each node $i$ is assigned:
+\begin{itemize}[leftmargin=2em]
+  \item A \textbf{load} $L_i(t)$, initially zero, representing the current electrical load.
+  \item A \textbf{capacity} $C_i = \max(k_i, 1)$, where $k_i$ is the node degree. This captures the engineering principle that highly connected substations are built with proportionally higher capacity.
+  \item A binary \textbf{status} flag: alive or failed.
+\end{itemize}
+
+\subsection{Dynamics}
+
+The simulation follows a drive-dissipation cycle over $T = 20{,}000$ time steps:
+
+\paragraph{Drive (Noise).}
+At each step, a random alive node receives a load increment $\Delta L = 0.25$ (the noise magnitude). This represents stochastic demand fluctuations, minor equipment faults, or weather-induced load changes.
+
+\paragraph{Relaxation (Avalanche).}
+After the perturbation, the system relaxes through iterated sweeps:
+\begin{enumerate}[leftmargin=2em]
+  \item For every alive node $i$ with $L_i > C_i$: node $i$ fails, and a fraction $f = 0.8$ of its load is distributed equally among its alive neighbours:
+  \begin{equation}
+    L_j \leftarrow L_j + \frac{f \cdot L_i}{|\mathcal{N}_i^{\text{alive}}|}, \quad \forall\, j \in \mathcal{N}_i^{\text{alive}}
+    \label{eq:redistribution}
+  \end{equation}
+  where $\mathcal{N}_i^{\text{alive}}$ is the set of alive neighbours of $i$.
+  \item Sweeps repeat until no more nodes are overloaded.
+\end{enumerate}
+
+The \textbf{avalanche size} $s$ is the total number of nodes that fail during one relaxation episode.
+
+\paragraph{Slow Repair (Dissipation).}
+To prevent the system from reaching total collapse and to sustain the SOC dynamics over long simulations, a slow repair mechanism is introduced: if more than $30\%$ of all nodes have failed, $10\%$ of the failed nodes are randomly repaired (reset to alive with zero load). This mimics the real-world process of grid operators restoring service after outages and keeps the system in the vicinity of the critical state.
+
+\subsection{Measurements}
+
+At each time step, we record:
+\begin{itemize}[leftmargin=2em]
+  \item The avalanche size $s(t)$.
+  \item The number of cascade steps.
+  \item The relative size of the largest connected component among alive nodes: $\phi(t) = |C_{\max}| / N$.
+\end{itemize}
+
+Post-simulation, we compute:
+\begin{itemize}[leftmargin=2em]
+  \item The probability density function $P(s)$ and complementary cumulative distribution function (CCDF) of avalanche sizes.
+  \item A power-law fit $P(s) = a \cdot s^{-\alpha}$ via nonlinear least squares.
+  \item The correlation between avalanche size and connectivity drop $\Delta\phi$.
+\end{itemize}
+
+\subsection{Implementation}
+
+The simulation is implemented in Python~3 using \texttt{NetworkX} for graph construction and analysis, \texttt{NumPy} for numerical computation, \texttt{SciPy} for curve fitting, and \texttt{Matplotlib} for visualization.
+The complete source code is available at the GitHub repository linked in the submission.
+
+
+% ═════════════════════════════════════════════════════════════════
+\section{Results and Analysis}
+\label{sec:results}
+
+\subsection{Network Structure}
+
+The scale-free network topology utilized in the primary simulation features nodes coloured by their load-to-capacity ratio, highlighting hub nodes (high degree) as central, well-connected vertices (Figure~\ref{fig:network}). Furthermore, the degree distribution follows the characteristic heavy-tailed form expected of Barab\'asi--Albert networks (Figure~\ref{fig:degree}).
+
+\begin{figure}[H]
+  \centering
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/network.png}
+    \caption{Network visualization. Colour indicates load/capacity ratio (yellow: low, red: high). Black nodes are currently failed.}
+    \label{fig:network}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/degree_distribution.png}
+    \caption{Degree distribution of the Barab\'asi--Albert network ($N=200$, $m=3$).}
+    \label{fig:degree}
+  \end{subfigure}
+  \caption{Structure of the simulated power grid network.}
+  \label{fig:structure}
+\end{figure}
+
+\subsection{Avalanche Time Series}
+
+Plotting the avalanche size as a function of time reveals that the overwhelming majority of perturbations produce no cascade ($s = 0$) or very small cascades ($s = 1$--$2$) (Figure~\ref{fig:timeseries}). However, intermittent large events with $s > 50$ punctuate the background noise, a pattern consistent with the bursty dynamics characteristic of SOC systems. Out of 20,000 time steps, 633 produced non-zero avalanches, reaching a maximum cascade size of 139 nodes (approximately $70\%$ of the network).
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\textwidth]{figures/avalanche_timeseries.png}
+  \caption{Time series of avalanche (cascade) sizes over 20,000 time steps. Note the intermittent large events amid a background of small or zero-size cascades.}
+  \label{fig:timeseries}
+\end{figure}
+
+\subsection{Avalanche Size Distribution}
+
+The avalanche-size probability distribution, visualized on log--log axes alongside its complementary cumulative distribution function (CCDF), is well approximated by a power law (Equation~\ref{eq:powerlaw}) with an exponent of $\alpha \approx 2.31$, fitted via nonlinear least squares (Figure~\ref{fig:freq}). 
+
+This exponent falls within the range $2 < \alpha < 3$ reported for many SOC systems, including the BTW sandpile model ($\alpha \approx 1.2$--$2.7$ depending on dimensionality) and empirical power grid blackout statistics ($\alpha \approx 1.5$--$2.5$) \cite{carreras2004}. Additionally, the CCDF, which is less sensitive to binning artifacts, confirms the heavy-tailed nature of the distribution.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\textwidth]{figures/freq_distribution.png}
+  \caption{Left: Avalanche-size probability density on log--log axes with power-law fit ($\alpha = 2.31$). Right: Complementary cumulative distribution function (CCDF).}
+  \label{fig:freq}
+\end{figure}
+
+\subsection{Connectivity Dynamics}
+
+Tracking the time evolution of the largest connected component fraction, $\phi(t)$, yields a mean connectivity of $\phi \approx 0.735$, indicating that on average about $73.5\%$ of the network remains in a single connected cluster (Figure~\ref{fig:connectivity}). Periodic sharp dips in this connectivity correspond to large cascade events that fragment the network.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\textwidth]{figures/connectivity.png}
+  \caption{Relative size of the largest connected component over time. The dashed line shows the mean value $\phi = 0.735$.}
+  \label{fig:connectivity}
+\end{figure}
+
+\subsection{Relationship Between Avalanches and Connectivity}
+
+Examining the scatter plot of connectivity drop $\Delta\phi$ versus avalanche size on log--log axes reveals a clear positive correlation: larger avalanches produce larger drops in network connectivity (Figure~\ref{fig:conn_aval}). This confirms that cascading failures do not merely affect individual nodes but systematically degrade the network's ability to transmit power across long distances.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.55\textwidth]{figures/conn_vs_avalanche.png}
+  \caption{Connectivity drop versus avalanche size (log--log). Larger cascades produce proportionally larger fragmentation of the network.}
+  \label{fig:conn_aval}
+\end{figure}
+
+\subsection{Topology Comparison}
+
+A comparison of the avalanche-size CCDF across three network topologies demonstrates that the scale-free network exhibits the heaviest tail, indicating the highest probability of very large cascades (Figure~\ref{fig:topo}). The small-world network shows intermediate behaviour, while the random network produces the lightest tail. 
+
+This ordering reflects the role of hub nodes: in scale-free networks, the failure of a highly connected hub redistributes load to many neighbours simultaneously, creating a multiplicative amplification effect. Random networks, lacking such hubs, distribute load more uniformly and are therefore less susceptible to extreme cascades.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.6\textwidth]{figures/topology_comparison.png}
+  \caption{Comparison of avalanche-size CCDFs across scale-free, small-world, and random network topologies.}
+  \label{fig:topo}
+\end{figure}
+
+% ═════════════════════════════════════════════════════════════════
+\section{Discussion}
+\label{sec:discussion}
+
+\subsection{Evidence for Self-Organized Criticality}
+
+Our simulation exhibits the three defining signatures of SOC:
+
+\begin{enumerate}[leftmargin=2em]
+  \item \textbf{Power-law distributed avalanches}: The cascade-size distribution follows $P(s) \sim s^{-2.31}$ over more than two decades, indicating scale-invariant dynamics with no characteristic event size.
+  \item \textbf{Separation of time scales}: The slow driving (one noise perturbation per step) and fast relaxation (cascades complete within the same step) satisfy the classic SOC separation-of-scales requirement.
+  \item \textbf{Self-tuning to criticality}: The system reaches and maintains the critical state without any external tuning of a control parameter. The interplay between noise-driven load accumulation, threshold-triggered cascades, and slow repair naturally steers the system to the boundary between stability and collapse.
+\end{enumerate}
+
+\subsection{Role of Connectivity}
+
+The positive correlation between avalanche size and connectivity drop (Figure~\ref{fig:conn_aval}) reveals that network structure is not merely a passive substrate but an active participant in the cascade dynamics.
+Hub failure can fragment the network into isolated components, preventing further cascade propagation but also severing power delivery to large regions.
+
+The topology comparison (Figure~\ref{fig:topo}) demonstrates that scale-free networks---which most closely resemble real power grids---are precisely the topology most vulnerable to SOC-driven extreme cascades.
+This has important engineering implications: designing grids with more homogeneous connectivity or introducing redundant pathways around hubs could reduce the probability of extreme blackouts.
+
+\subsection{Relation to Real Power Grids}
+
+Empirical studies of blackout data from North America and Europe have consistently found power-law distributions in blackout sizes \cite{carreras2004}, with exponents ranging from approximately 1.5 to 2.5.
+Our simulated exponent of $\alpha \approx 2.31$ falls within this empirical range, suggesting that despite the model's simplifications, it captures the essential physics of real cascade dynamics.
+
+The model's simplifications---uniform noise magnitude, deterministic redistribution, and absence of generation-demand balancing---limit direct quantitative comparison with real grids.
+However, the qualitative agreement in the avalanche statistics supports the hypothesis that the SOC mechanism is a robust, topology-dependent feature of power grid dynamics.
+
+\subsection{Limitations}
+
+Several limitations should be acknowledged.
+The network size ($N=200$) is small compared to real power grids (thousands to tens of thousands of nodes).
+The load redistribution rule is simplified; real power flow follows Kirchhoff's laws and depends on line impedances.
+The repair mechanism is stylized; real grid restoration follows complex operational procedures.
+Future work could address these by incorporating AC/DC power flow equations, realistic demand profiles, and larger network sizes.
+
+
+% ═════════════════════════════════════════════════════════════════
+\section{Conclusion}
+\label{sec:conclusion}
+
+We have demonstrated through computational simulation that a model power grid, driven by random load perturbations and subject to threshold-based cascading failures, self-organizes to a critical state.
+The avalanche-size distribution follows a power law with exponent $\alpha \approx 2.31$, consistent with both theoretical SOC predictions and empirical blackout statistics.
+
+The key findings are:
+\begin{enumerate}[leftmargin=2em]
+  \item The power grid model exhibits self-organized criticality without parameter tuning.
+  \item Scale-free network topology amplifies extreme cascades compared to random or small-world topologies.
+  \item Network connectivity drops are positively correlated with cascade sizes, confirming that large blackouts fundamentally restructure the grid topology.
+  \item The system's critical state emerges from the interplay of three elements: noise (random demand fluctuations), avalanches (cascading overloads), and connectivity (network structure governing load redistribution).
+\end{enumerate}
+
+These results underscore the importance of complexity science perspectives in understanding and mitigating infrastructure failures.
+The self-organized critical nature of power grids suggests that conventional engineering approaches focused on preventing individual component failures may be insufficient; instead, systemic strategies that modify the network's propensity for criticality---such as controlled load shedding, topological restructuring, or adaptive capacity allocation---may be more effective at reducing extreme blackout risk.
+
+
+% ═════════════════════════════════════════════════════════════════
+\section*{Acknowledgements}
+
+This project was completed with the assistance of Claude (Anthropic), which was used for code development, manuscript drafting, and analysis guidance.
+All simulation code, analysis, and figures were generated programmatically using Python.
+The author acknowledges the use of the following open-source libraries: NetworkX, NumPy, SciPy, and Matplotlib.
+
+
+% ═════════════════════════════════════════════════════════════════
+\bibliographystyle{unsrt}
+\begin{thebibliography}{9}
+
+\bibitem{bak1987}
+P.~Bak, C.~Tang, and K.~Wiesenfeld,
+``Self-organized criticality: An explanation of the 1/f noise,''
+\textit{Physical Review Letters}, vol.~59, no.~4, pp.~381--384, 1987.
+
+\bibitem{barabasi1999}
+A.-L.~Barab{\'a}si and R.~Albert,
+``Emergence of scaling in random networks,''
+\textit{Science}, vol.~286, no.~5439, pp.~509--512, 1999.
+
+\bibitem{albert2004}
+R.~Albert, I.~Albert, and G.~L.~Nakarado,
+``Structural vulnerability of the North American power grid,''
+\textit{Physical Review E}, vol.~69, no.~2, p.~025103, 2004.
+
+\bibitem{carreras2004}
+B.~A.~Carreras, V.~E.~Lynch, I.~Dobson, and D.~E.~Newman,
+``Complex dynamics of blackouts in power transmission systems,''
+\textit{Chaos}, vol.~14, no.~3, pp.~643--652, 2004.
+
+\bibitem{watts1998}
+D.~J.~Watts and S.~H.~Strogatz,
+``Collective dynamics of `small-world' networks,''
+\textit{Nature}, vol.~393, no.~6684, pp.~440--442, 1998.
+
+\bibitem{motter2002}
+A.~E.~Motter and Y.-C.~Lai,
+``Cascade-based attacks on complex networks,''
+\textit{Physical Review E}, vol.~66, no.~6, p.~065102, 2002.
+
+\bibitem{crucitti2004}
+P.~Crucitti, V.~Latora, and M.~Marchiori,
+``Model for cascading failures in complex networks,''
+\textit{Physical Review E}, vol.~69, no.~4, p.~045104, 2004.
+
+\bibitem{dobson2007}
+I.~Dobson, B.~A.~Carreras, V.~E.~Lynch, and D.~E.~Newman,
+``Complex systems analysis of series of blackouts: Cascading failure, critical points, and self-organization,''
+\textit{Chaos}, vol.~17, no.~2, p.~026103, 2007.
+
+\end{thebibliography}
+
+
+% ═════════════════════════════════════════════════════════════════
+\appendix
+\section{List of Prompts Used}
+\label{sec:prompts}
+
+The following prompts were used with Claude (Anthropic) during the development of this project:
+
+\begin{enumerate}
+    \item ``I want to build a complexity science simulation modeling power grid blackouts as avalanches, inspired by the BTW sandpile model. Can you help me write a Python script? We need to initialize a network ($N = 200$) where nodes have `load' and `capacity' attributes based on their degree.''
+    
+    \item ``The initial simulation is crashing too quickly. Let's add a `slow repair' mechanism to the loop to keep it near criticality. Please update our code so that if more than 30\% of the network fails, 10\% of those failed nodes are randomly restored to zero load.''
+    
+    \item ``The simulation ran successfully, and I have the avalanche size data. Can you write a Python snippet to fit a power-law distribution to this data, and help me draft a brief discussion on how this exponent connects back to our SOC theory?''
+    
+    \item ``I have written rough notes for the theoretical background and compiled the figures. Please help me refine the academic tone and structure this into a formal LaTeX journal manuscript, ensuring all mathematical notation and graph placements are properly formatted.''
+\end{enumerate}
+
+\section{Simulation Code}
+\label{app:code}
+
+The complete simulation code (\texttt{power\_grid\_soc.py}) is available at the GitHub repository. Key parameters used in the primary simulation:
+\\ Github Repo Link: https://github.com/tahseen252/power-grid-soc-simulation
+
+\begin{table}[H]
+  \centering
+  \caption{Simulation parameters for the primary run.}
+  \label{tab:params}
+  \begin{tabular}{lll}
+    \toprule
+    \textbf{Parameter} & \textbf{Symbol} & \textbf{Value} \\
+    \midrule
+    Number of nodes     & $N$     & 200 \\
+    BA attachment param & $m$     & 3 \\
+    Network topology    & ---     & Scale-free (Barab\'asi--Albert) \\
+    Total time steps    & $T$     & 20,000 \\
+    Noise magnitude     & $\Delta L$ & 0.25 \\
+    Redistribution frac & $f$     & 0.80 \\
+    Repair threshold    & ---     & 30\% nodes failed \\
+    Repair fraction     & ---     & 10\% of failed nodes \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{table}[H]
+  \centering
+  \caption{Summary statistics from the primary simulation.}
+  \label{tab:stats}
+  \begin{tabular}{ll}
+    \toprule
+    \textbf{Metric} & \textbf{Value} \\
+    \midrule
+    Total time steps            & 20,000 \\
+    Non-zero avalanches         & 633 \\
+    Maximum avalanche size      & 139 \\
+    Mean avalanche size ($s>0$) & 3.50 \\
+    Median avalanche size       & 1.0 \\
+    Power-law exponent $\alpha$ & 2.31 \\
+    Mean connectivity $\phi$    & 0.735 \\
+    Minimum connectivity        & 0.005 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+
+\end{document}
